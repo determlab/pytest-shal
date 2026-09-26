@@ -50,7 +50,7 @@ pytest --shal-setup bench.yaml --shal-unit SN-000417
 |---|---|
 | `--shal-setup PATH\|sim` | the setup file; default `setup.yaml` in the rootdir, then `$SHAL_SETUP` |
 | `--shal-unit ID`, `@pytest.mark.shal_unit("ID")` | the DUT id in the record; default `bench` |
-| `--shal-approve deny\|prompt\|allow` | `deny` (default) fails a gated op; `prompt` asks a person at the terminal (denies with no terminal); `allow` approves on the sim rig's Hal only, never process-wide, and is refused until SHAL has `Hal.bind_approver` |
+| `--shal-approve deny\|prompt\|allow` | `deny` (default) fails a gated op; `prompt` asks a person at the terminal (denies with no terminal); `allow` approves on the sim rig's Hal only (`shal.load(..., approver=AutoApprove())`), never process-wide; it needs a pyshal whose `shal.load` takes `approver=` (shal #217, not yet on PyPI) and is refused otherwise |
 | `rig` | session fixture: `rig.<id>`, or `rig["path/to/node"]` |
 | `check(name, value, unit, min=, max=)` | asserts the limits and records the measurement |
 

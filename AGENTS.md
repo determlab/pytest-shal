@@ -25,7 +25,8 @@ Expect `1 passed`, then `pass bench sim`. The record is `records.db` and
 
 **Entry points an agent calls:**
 - `--shal-setup PATH|sim`, `--shal-unit ID`, `--shal-approve deny|prompt|allow`
-  (`allow` is refused until SHAL has `Hal.bind_approver`).
+  (`allow` gives the sim rig's own `shal.load` `approver=shal.AutoApprove()`;
+  it is refused on a pyshal whose `shal.load` has no `approver=` — shal #217 / PR #219).
 - Fixtures `rig` (`rig.<id>`, `rig["path/to/node"]`) and
   `check(name, value, unit, min=, max=)`; marker `@pytest.mark.shal_unit("ID")`.
 - conftest: `pytest_plugins = ["pytest_shal"]` (only this form).

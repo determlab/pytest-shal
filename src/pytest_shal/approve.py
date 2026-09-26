@@ -8,11 +8,12 @@ of SHAL's existing approvers is installed:
   with the op named. Nothing waits on a prompt, so CI never hangs.
 - ``prompt`` -> ``shal.ConsoleApprover``: a person at a bench is asked on the
   terminal. With no terminal (CI, a pipe) SHAL's own rule applies: it denies.
-- ``allow`` -> ``shal.AutoApprove`` bound to the rig's Hal ONLY, through SHAL's
-  ``Hal.bind_approver``, and only with ``--shal-setup sim``. It is never seated
-  process-wide. A SHAL without ``Hal.bind_approver`` refuses ``allow`` with a
-  usage error (checked by capability, not by version). While ``allow`` is in
-  force, the process-wide approver is ``deny``.
+- ``allow`` -> ``shal.AutoApprove`` for the rig's Hal ONLY, handed to the rig's
+  own ``shal.load(..., approver=...)`` (shal #217), and only with
+  ``--shal-setup sim``. It is fixed at load and never seated process-wide. A SHAL
+  whose ``shal.load`` has no ``approver`` keyword refuses ``allow`` with a usage
+  error (checked by capability, not by version). While ``allow`` is in force,
+  the process-wide approver is ``deny``.
 
 When it is seated:
 
@@ -26,6 +27,7 @@ When it is seated:
 from __future__ import annotations
 
 import contextlib
+import inspect
 import sys
 from collections.abc import Callable
 from contextlib import AbstractContextManager
@@ -40,9 +42,19 @@ SIM = "sim"  # the --shal-setup value for the bundled sim
 _SESSION = pytest.StashKey[contextlib.ExitStack]()
 
 
+#: What ``allow`` needs, named in its refusal.
+NEEDS = ("pyshal with shal.load(approver=) — determlab/shal#217 / PR #219 "
+         "(commit ae0113a), not yet on PyPI")
+
+
 def can_allow() -> bool:
-    """True when SHAL can bind an approver to one Hal (``Hal.bind_approver``)."""
-    return hasattr(shal.Hal, "bind_approver")
+    """True when ``shal.load`` takes an ``approver`` keyword (one Hal's own approver)."""
+    try:
+        params = inspect.signature(shal.load).parameters
+    except (TypeError, ValueError):
+        return False
+    p = params.get("approver")
+    return p is not None and p.kind in (p.KEYWORD_ONLY, p.POSITIONAL_OR_KEYWORD)
 
 
 def check_mode(config: pytest.Config) -> None:
@@ -51,9 +63,9 @@ def check_mode(config: pytest.Config) -> None:
         return
     if not can_allow():
         raise pytest.UsageError(
-            f"--shal-approve=allow needs SHAL's Hal.bind_approver, so the approval "
-            f"is bound to the rig's Hal only; pyshal {shal.__version__} does not "
-            f"have it. Use --shal-approve=deny or --shal-approve=prompt."
+            f"--shal-approve=allow needs {NEEDS}, so the approval holds for the "
+            f"rig's Hal only; the installed pyshal {shal.__version__} does not have "
+            f"it. Use --shal-approve=deny or --shal-approve=prompt."
         )
     if config.getoption("--shal-setup") != SIM:
         raise pytest.UsageError("--shal-approve=allow is allowed only with --shal-setup sim")
@@ -111,9 +123,10 @@ def seat_default(config: pytest.Config) -> AbstractContextManager[object]:
     return shal.approver(shal.DenyAll())
 
 
-def bind_rig(config: pytest.Config, hal: shal.Hal) -> None:
-    """``allow`` only: bind AutoApprove to the rig's Hal, and to nothing else."""
+def rig_approver(config: pytest.Config) -> dict[str, shal.Approver]:
+    """The keyword arguments for the rig's own ``shal.load``: ``allow`` only gives
+    it ``approver=AutoApprove()``, for that Hal and nothing else. Empty otherwise."""
     if mode(config) != "allow":
-        return
-    check_mode(config)  # already checked at configure; never bind without it
-    getattr(hal, "bind_approver")(shal.AutoApprove())  # noqa: B009 — not in this pyshal's types
+        return {}
+    check_mode(config)  # already checked at configure; never hand it over without it
+    return {"approver": shal.AutoApprove()}
