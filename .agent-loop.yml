@@ -1,0 +1,54 @@
+# .agent-loop.yml — per-repo config for the agent-loop autopilot (0.3.0).
+# Written for #2. Validate it after any edit:
+#     python $CLAUDE_PLUGIN_ROOT/tools/check_config.py
+# Every key below is read by something; the checker fails on one that is not.
+version: 1
+
+# Branch the loop targets and PRs against.
+branch_base: main
+
+# Max CODER<->REVIEWER rounds before the loop gives up and flags a human.
+max_rounds: 4
+
+# auto-merge is REFUSED unless main has a required status check (the CI jobs).
+auto_merge: true
+merge_method: squash        # squash | merge | rebase
+
+# The same commands .github/workflows/ci.yml runs. No build step yet (#1 adds the wheel).
+commands:
+  install: "pip install -e \".[dev]\""
+  test:    "python -m pytest"
+  lint:    "ruff check ."
+
+hard_stops:
+  # Adding or removing a dependency here -> flag.
+  dependency_files:
+    - pyproject.toml
+
+  # Files an agent must never change without a human looking.
+  protected_paths:
+    - ".agent-loop.yml"   # This file defines what counts as routine work, so it
+                          # cannot itself be changed by routine work.
+    - "pyproject.toml"    # Holds the pytest11 entry point. dependency_files above
+                          # flags only an added or removed dependency, so it would
+                          # let an entry-point edit through; listing the file here
+                          # flags ANY edit to it, which covers that line. The
+                          # entry point runs in every test session of every project
+                          # that installs this package.
+
+  # Deleting a file the branch didn't create -> flag.
+  flag_on_file_delete: true
+  # Reviewer semantically flags public API / interface changes -> flag.
+  # The public API is the pytest surface: options, fixtures, markers (spec §3).
+  flag_on_public_api_change: true
+
+# What the reviewer reads.
+review:
+  standards_sources:
+    - AGENTS.md
+    - docs/agents/
+
+  # Invariants no path glob can express. Each one is a hard stop.
+  hard_stop_when:
+    - "the plugin changes the collection, outcome or output of a test session that uses no rig/check fixture and passes no --shal-* option (the entry point loads it into every pytest run where it is installed)"
+    - "the default of --shal-approve stops being deny, or any code path installs an approver weaker than the option asked for (spec §4: the plugin never weakens SHAL's gate)"

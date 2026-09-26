@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pytest-shal"
+version = "0.0.1"
+description = "pytest plugin for SHAL: the rig from a setup file, one record per test"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+classifiers = [
+    "Framework :: Pytest",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    # Pinned by commit until pyshal 0.3.0 is on PyPI; then `pyshal>=0.3.0`.
+    "pyshal @ git+https://github.com/determlab/shal@59c151ef48969114bb4c9a8e5f9296d768fb70e6",
+    "pytest",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff"]
+
+# The entry point pytest loads in every session of every project that installs
+# this package. Fenced in .agent-loop.yml (protected_paths: pyproject.toml).
+[project.entry-points.pytest11]
+shal = "pytest_shal.plugin"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py310"
