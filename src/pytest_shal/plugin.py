@@ -77,7 +77,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         "--shal-approve", default=None, choices=approve.MODES,
         help=f"who approves a gated SHAL op: deny fails the test (default: "
              f"{approve.DEFAULT}), prompt asks a person at the terminal, allow "
-             f"approves on the sim rig only (needs SHAL's Hal.bind_approver)",
+             f"approves on the sim rig only (needs shal.load(approver=), shal #217)",
     )
 
 
@@ -196,8 +196,8 @@ def rig(pytestconfig: pytest.Config) -> Generator[Rig]:
     with contextlib.ExitStack() as stack:
         stack.enter_context(approve.seat_default(pytestconfig))  # deny unless named
         source = copy.deepcopy(SIM_TOPOLOGY) if setup.source is None else str(setup.source)
-        hal = stack.enter_context(shal.load(source))
-        approve.bind_rig(pytestconfig, hal)  # allow: AutoApprove on this Hal only
+        # allow: approver=AutoApprove() for this Hal only, fixed at load (shal #217)
+        hal = stack.enter_context(shal.load(source, **approve.rig_approver(pytestconfig)))
         yield Rig(hal)
 
 
