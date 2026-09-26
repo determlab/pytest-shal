@@ -35,3 +35,8 @@ jobs:
         run: pip install -e ".[dev]"
       - name: Ruff
         run: ruff check .
+      # mypy is installed here, not in the dev extra: pyproject.toml is fenced.
+      - name: Mypy
+        run: |
+          pip install mypy
+          mypy --strict src

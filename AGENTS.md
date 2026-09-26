@@ -1,13 +1,37 @@
 # pytest-shal — v0.1
 
-A pytest plugin for SHAL. One line in `conftest.py`, and every test gets the rig
-from a setup file, every failing check becomes a step fail, and every test
-writes one record. Today this repo is a skeleton: the plugin registers with
-pytest and does nothing yet. The package itself is #1.
+A test sequencer an agent can drive, safely. It is a pytest plugin for SHAL:
+each test gets the rig from a setup file (`rig`), `check()` asserts and records a
+measurement, and each test that uses them writes one record through
+`shal.record`. A gated SHAL op fails the test by default (`--shal-approve=deny`);
+nothing waits on a prompt.
 
-**Install (dev):** `pip install -e ".[dev]"`
+**Install** (from a clone, until it is on PyPI; needs `git`, pyshal is pinned by
+a git URL): `pip install .`
 
-**The one command:** `python -m pytest` (CI also runs `ruff check .`)
+**First success — no account, no key, no config file, no hardware:**
+
+```
+# test_first.py
+def test_room(rig, check):
+    check("room", rig.ambient_temp.read_celsius(), "celsius", min=-40, max=125)
+```
+```
+python -m pytest --shal-setup sim test_first.py
+python -c "from shal import record; r = record.read('.')[0]; print(r.verdict, r.unit, r.station)"
+```
+Expect `1 passed`, then `pass bench sim`. The record is `records.db` and
+`records/<id>.yaml` in the rootdir.
+
+**Entry points an agent calls:**
+- `--shal-setup PATH|sim`, `--unit ID`, `--shal-approve deny|gate|auto`
+  (`auto` only with `sim`).
+- Fixtures `rig` (`rig.<id>`, `rig["path/to/node"]`) and
+  `check(name, value, unit, min=, max=)`; marker `@pytest.mark.unit("ID")`.
+- Records: `shal.record.read(store, unit=, station=, sequence=, verdict=)`.
+
+**Develop:** `pip install -e ".[dev]"`, then `python -m pytest`, `ruff check .`,
+and `pip install mypy` + `mypy --strict src` (CI runs all three).
 
 **The contract:** `projects/shal/specs/pytest-shal.md` in `determlab/ops`.
-Agent rules for this repo: `docs/agents/context.md` and `.agent-loop.yml`.
+Agent rules: `docs/agents/context.md`, `.agent-loop.yml`, `docs/DECISIONS.md`.
