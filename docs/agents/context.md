@@ -5,13 +5,17 @@
 test engineer adds one line to `conftest.py`; each test gets the rig from a
 setup file (`rig` fixture), `check()` asserts and records a measurement, and each
 test writes one record through `shal.record`. The spec of record is
-`projects/shal/specs/pytest-shal.md` in `determlab/ops`. Today (#2) the repo is
-only a skeleton; the package is #1.
+`projects/shal/specs/pytest-shal.md` in `determlab/ops`. Decisions:
+`docs/DECISIONS.md`.
 
 ## Architecture map
 - `src/pytest_shal/plugin.py` — the module the `pytest11` entry point loads
   (entry name `shal`). All pytest hooks, options and fixtures live here.
-- `src/pytest_shal/__init__.py` — package version.
+- `src/pytest_shal/approve.py` — the `--shal-approve` mode, its default, and
+  when and where each SHAL approver is seated. The one place the approval
+  mode lives (fenced).
+- `src/pytest_shal/__init__.py` — package version, and the guard that makes
+  `pytest_plugins = ["pytest_shal"]` register the plugin once, never twice.
 - `tests/` — pytest suite. Use `pytester` to test plugin behaviour in a
   sub-session, not the outer session.
 - `pyproject.toml` — dependencies and the entry point. Fenced.
@@ -36,7 +40,10 @@ py -3.12 -m venv .venv && .venv/Scripts/activate   # Windows; bin/activate elsew
 pip install -e ".[dev]"
 python -m pytest
 ruff check .
+pip install mypy && mypy --strict src     # not in the dev extra: pyproject is fenced
 ```
+`tests/test_first_run.py` builds the wheel and installs it in a fresh venv, so
+the suite needs network access.
 `pip install` needs `git` (pyshal comes from a git URL for now).
 
 ## Definition of done
