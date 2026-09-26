@@ -277,17 +277,23 @@ def check(request: pytest.FixtureRequest) -> Generator[Check]:
 
 
 def _wants_record(item: pytest.Item) -> bool:
-    """True only when the test resolves `rig` or `check` to THIS plugin's fixture.
+    """True only when the test's `rig` or `check` really runs THIS plugin's fixture.
 
-    A project with its own `check` or `rig` fixture is not a SHAL test.
+    Walk the override chain the way pytest resolves it: start at the closest
+    definition, and step to the one it overrides only while it requests its own
+    name (``def rig(rig): ...``). A project's own, unrelated `check` or `rig`
+    stops the walk, so it is not a SHAL test.
     """
     info = getattr(item, "_fixtureinfo", None)
     if info is None:
         return False
     for name in _FIXTURES:
-        defs = info.name2fixturedefs.get(name)
-        if defs and getattr(defs[-1].func, "__module__", None) == __name__:
-            return True
+        defs = info.name2fixturedefs.get(name, ())
+        for fixturedef in reversed(defs):
+            if getattr(fixturedef.func, "__module__", None) == __name__:
+                return True
+            if name not in fixturedef.argnames:
+                break
     return False
 
 

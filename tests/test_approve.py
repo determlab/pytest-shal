@@ -88,13 +88,19 @@ def test_allow_binds_the_rig_hal_only(pytester, monkeypatch):
     # the rig's Hal, and keep deny as the process-wide approver
     import shal
     bound = []
-    monkeypatch.setattr(shal.Hal, "bind_approver", lambda hal, a: bound.append(a),
-                        raising=False)
+
+    def bind_approver(hal, a):
+        bound.append(a)
+        hal.bound_for_test = a
+
+    monkeypatch.setattr(shal.Hal, "bind_approver", bind_approver, raising=False)
     pytester.makepyfile("""
         import shal
 
         def test_rig(rig):
             assert type(shal.get_approver()).__name__ == "DenyAll"
+            # bound to THIS rig's Hal
+            assert type(rig._hal.bound_for_test).__name__ == "AutoApprove"
     """)
     pytester.runpytest("--shal-setup", "sim", "--shal-approve=allow").assert_outcomes(passed=1)
     assert [type(a).__name__ for a in bound] == ["AutoApprove"]

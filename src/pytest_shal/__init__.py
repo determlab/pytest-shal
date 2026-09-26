@@ -3,6 +3,10 @@
 The hooks, options and fixtures live in ``pytest_shal.plugin``, which the
 ``pytest11`` entry point (name ``shal``) loads. This package module holds none,
 so ``pytest_plugins = ["pytest_shal"]`` in a conftest never registers them twice.
+
+PYTEST_DONT_REWRITE: the entry point imports this package before a conftest
+names it, so pytest could not rewrite it anyway; this marker stops the
+"already imported" warning, which fails a session run with ``-W error``.
 """
 from __future__ import annotations
 

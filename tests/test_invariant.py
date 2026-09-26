@@ -116,3 +116,45 @@ def test_a_projects_own_unit_option_and_marker_run_unchanged(pytester):
     without = pytester.runpytest_subprocess(*args, "-p", "no:shal")
     with_plugin.assert_outcomes(passed=1)
     assert lines(with_plugin) == lines(without)
+
+
+def test_conftest_line_under_W_error(pytester, monkeypatch):
+    # autoload on: the package is imported before the conftest names it
+    monkeypatch.delenv("PYTEST_DISABLE_PLUGIN_AUTOLOAD", raising=False)
+    pytester.makeconftest('pytest_plugins = ["pytest_shal"]')
+    pytester.makepyfile("def test_a(): pass")
+    result = pytester.runpytest_subprocess("-W", "error", "-p", "no:cacheprovider")
+    result.assert_outcomes(passed=1)
+
+
+def test_extended_plugin_fixtures_still_record(pytester):
+    # a conftest that builds on the plugin's fixtures: still a SHAL test
+    pytester.makeconftest("""
+        import pytest
+
+        @pytest.fixture(scope="session")
+        def rig(rig):
+            return rig
+
+        @pytest.fixture
+        def check(check):
+            return check
+
+        @pytest.fixture
+        def room(rig):
+            return rig.ambient_temp
+    """)
+    pytester.makepyfile("""
+        def test_rig(rig):
+            rig.ambient_temp.read_celsius()
+
+        def test_check(check):
+            check("a", 1)
+
+        def test_room(room):
+            room.read_celsius()
+    """)
+    pytester.runpytest("--shal-setup", "sim").assert_outcomes(passed=3)
+    from shal import record
+    assert sorted(r.sequence.split("::")[1] for r in record.read(pytester.path)) == [
+        "test_check", "test_rig", "test_room"]
