@@ -11,8 +11,9 @@ test writes one record through `shal.record`. The spec of record is
 ## Architecture map
 - `src/pytest_shal/plugin.py` — the module the `pytest11` entry point loads
   (entry name `shal`). All pytest hooks, options and fixtures live here.
-- `src/pytest_shal/approve.py` — the `--shal-approve` mode -> which SHAL
-  approver is seated. The one place the approval mode lives.
+- `src/pytest_shal/approve.py` — the `--shal-approve` mode, its default, and
+  when and where each SHAL approver is seated. The one place the approval
+  mode lives (fenced).
 - `src/pytest_shal/__init__.py` — package version, and the guard that makes
   `pytest_plugins = ["pytest_shal"]` register the plugin once, never twice.
 - `tests/` — pytest suite. Use `pytester` to test plugin behaviour in a

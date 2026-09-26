@@ -24,10 +24,11 @@ Expect `1 passed`, then `pass bench sim`. The record is `records.db` and
 `records/<id>.yaml` in the rootdir.
 
 **Entry points an agent calls:**
-- `--shal-setup PATH|sim`, `--unit ID`, `--shal-approve deny|gate|auto`
-  (`auto` only with `sim`).
+- `--shal-setup PATH|sim`, `--shal-unit ID`, `--shal-approve deny|prompt|allow`
+  (`allow` is refused until SHAL has `Hal.bind_approver`).
 - Fixtures `rig` (`rig.<id>`, `rig["path/to/node"]`) and
-  `check(name, value, unit, min=, max=)`; marker `@pytest.mark.unit("ID")`.
+  `check(name, value, unit, min=, max=)`; marker `@pytest.mark.shal_unit("ID")`.
+- conftest: `pytest_plugins = ["pytest_shal"]` (only this form).
 - Records: `shal.record.read(store, unit=, station=, sequence=, verdict=)`.
 
 **Develop:** `pip install -e ".[dev]"`, then `python -m pytest`, `ruff check .`,

@@ -1,10 +1,11 @@
 """The rig, check() and one record per test, on the sim that ships with shal."""
-import shutil
 from pathlib import Path
 
 import pytest
-import shal
+import yaml
 from shal import record
+
+from pytest_shal.plugin import SIM_TOPOLOGY
 
 SIM_TEST = """
 def test_room(rig, check):
@@ -102,11 +103,11 @@ def test_unit_option_and_marker(pytester):
         def test_from_option(check):
             check("a", 1)
 
-        @pytest.mark.unit("SN-000417")
+        @pytest.mark.shal_unit("SN-000417")
         def test_from_marker(check):
             check("a", 1)
     """)
-    result = pytester.runpytest("--shal-setup", "sim", "--unit", "SN-1", "--strict-markers")
+    result = pytester.runpytest("--shal-setup", "sim", "--shal-unit", "SN-1", "--strict-markers")
     result.assert_outcomes(passed=2)
     units = {r.sequence.split("::")[1]: r.unit for r in records(pytester.path)}
     assert units == {"test_from_option": "SN-1", "test_from_marker": "SN-000417"}
@@ -114,9 +115,9 @@ def test_unit_option_and_marker(pytester):
 
 def test_blank_unit_is_refused(pytester):
     pytester.makepyfile("def test_a(): pass")
-    result = pytester.runpytest("--unit", " ")
+    result = pytester.runpytest("--shal-unit", " ")
     assert result.ret == pytest.ExitCode.USAGE_ERROR
-    result.stderr.fnmatch_lines(["*--unit must not be blank*"])
+    result.stderr.fnmatch_lines(["*--shal-unit must not be blank*"])
 
 
 def test_rig_by_id_and_by_path(pytester):
@@ -136,8 +137,8 @@ def test_rig_by_id_and_by_path(pytester):
 
 
 def sim_file(dest: Path) -> Path:
-    src = Path(shal.__file__).parent / "samples" / "hello" / "topology.yaml"
-    return Path(shutil.copy(src, dest))
+    dest.write_text(yaml.safe_dump(SIM_TOPOLOGY), encoding="utf-8")
+    return dest
 
 
 def test_setup_file_default_and_option(pytester):

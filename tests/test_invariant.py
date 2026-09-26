@@ -29,8 +29,11 @@ def test_error(boom):
 _NOISE = re.compile(r"^(platform |plugins: |rootdir: |cachedir: )| in \d+\.\d+s")
 
 
+_ADDR = re.compile(r" at 0x[0-9A-Fa-f]+")
+
+
 def lines(result):
-    return [ln for ln in result.outlines if not _NOISE.search(ln)]
+    return [_ADDR.sub(" at 0x?", ln) for ln in result.outlines if not _NOISE.search(ln)]
 
 
 def test_plain_session_is_unchanged(pytester):
@@ -60,3 +63,56 @@ def test_conftest_line_registers_once(pytester, monkeypatch, autoload):
     result.assert_outcomes(passed=1)
     from shal import record
     assert len(record.read(pytester.path)) == 1  # one record, not two
+
+
+def test_a_projects_own_check_fixture_is_left_alone(pytester, monkeypatch):
+    # its own `check` and `rig`, and a setup the plugin could find: still not ours
+    setup = pytester.path / "bench.yaml"
+    setup.write_text("shal_version: 1\nroot: {}\n")
+    monkeypatch.setenv("SHAL_SETUP", str(setup))
+    pytester.makeconftest("""
+        import pytest
+
+        @pytest.fixture
+        def check():
+            return lambda value: value > 0
+
+        @pytest.fixture
+        def rig():
+            return "the project's own rig"
+    """)
+    pytester.makepyfile("""
+        def test_ok(check, rig):
+            assert check(1) and rig == "the project's own rig"
+
+        def test_red(check):
+            assert check(-1)
+    """)
+    with_plugin = pytester.runpytest_subprocess("-p", "no:cacheprovider")
+    without = pytester.runpytest_subprocess("-p", "no:cacheprovider", "-p", "no:shal")
+    with_plugin.assert_outcomes(passed=1, failed=1)
+    assert lines(with_plugin) == lines(without)
+    assert not (pytester.path / "records.db").exists()
+    assert not (pytester.path / "records").exists()
+
+
+def test_a_projects_own_unit_option_and_marker_run_unchanged(pytester):
+    pytester.makeconftest("""
+        def pytest_addoption(parser):
+            parser.addoption("--unit", default="none")
+
+        def pytest_configure(config):
+            config.addinivalue_line("markers", "unit(id): the project's own marker")
+    """)
+    pytester.makepyfile("""
+        import pytest
+
+        @pytest.mark.unit("mine")
+        def test_a(pytestconfig):
+            assert pytestconfig.getoption("--unit") == "X"
+    """)
+    args = ("-p", "no:cacheprovider", "--strict-markers", "--unit", "X")
+    with_plugin = pytester.runpytest_subprocess(*args)
+    without = pytester.runpytest_subprocess(*args, "-p", "no:shal")
+    with_plugin.assert_outcomes(passed=1)
+    assert lines(with_plugin) == lines(without)

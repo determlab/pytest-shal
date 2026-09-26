@@ -1,23 +1,26 @@
 """The pytest11 entry point: the rig from a setup file, check(), one record per test.
 
-The whole surface (spec §3): ``--shal-setup PATH|sim``, ``--unit ID``,
-``--shal-approve deny|gate|auto``, the ``unit`` marker, and the ``rig`` and
+The whole surface (spec §3): ``--shal-setup PATH|sim``, ``--shal-unit ID``,
+``--shal-approve deny|prompt|allow``, the ``shal_unit`` marker, and the ``rig`` and
 ``check`` fixtures. Everything else is pytest's.
 
 Safety invariant: the entry point loads this module into every pytest run where
 the package is installed. A session that uses no ``rig``/``check`` fixture and
-passes no ``--shal-*`` option must behave exactly as without it. So nothing here
+passes no ``--shal-*`` option must behave exactly as without it. Every option and
+marker added here is ``shal``-prefixed, so it cannot clash with a project's own.
+So nothing here
 acts until a test asks for ``rig`` or ``check``, or an option is given: no
 approver is seated, no setup is read and no record is written before that.
 """
 from __future__ import annotations
 
 import contextlib
+import copy
 import hashlib
+import json
 import math
 import os
 import secrets
-import sys
 from collections.abc import Generator
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -31,15 +34,27 @@ from shal import record as shal_record
 from pytest_shal import approve
 
 #: ``--shal-setup sim``: the simulated rig that ships with shal (spec R4).
-SIM = "sim"
+SIM = approve.SIM
 #: Only tests that ask for one of these get a record.
 _FIXTURES = frozenset(("rig", "check"))
 _DEFAULT_UNIT = "bench"  # record.md §2: never blank
 
 
-def _sim_topology() -> Path:
-    """shal's own sim sample: a sim I2C bus and a sim sensor, id ``ambient_temp``."""
-    return Path(shal.__file__).resolve().parent / "samples" / "hello" / "topology.yaml"
+#: The sim, as an in-memory topology of the plugin's own (D3): one simulated I2C
+#: bus and one simulated temperature sensor on it, id ``ambient_temp``. Both
+#: drivers ship with shal; its ``set_target`` is a gated ``config`` op.
+SIM_TOPOLOGY: dict[str, Any] = {
+    "shal_version": 1,
+    "root": {
+        "bus": {
+            "driver": "shal,sim-i2c",
+            "address": "sim0",
+            "children": {
+                "temp0": {"id": "ambient_temp", "driver": "shal,sim-sensor", "address": 0x48},
+            },
+        },
+    },
+}
 
 
 # --------------------------------------------------------------------------- #
@@ -54,55 +69,26 @@ def pytest_addoption(parser: pytest.Parser) -> None:
              "shal (default: setup.yaml in the rootdir, then $SHAL_SETUP)",
     )
     group.addoption(
-        "--unit", default=None, metavar="ID",
+        "--shal-unit", default=None, metavar="ID",
         help="the DUT id written to each record (default: bench); "
-             "@pytest.mark.unit(ID) overrides it per test",
+             "@pytest.mark.shal_unit(ID) overrides it per test",
     )
     group.addoption(
         "--shal-approve", default=None, choices=approve.MODES,
         help=f"who approves a gated SHAL op: deny fails the test (default: "
-             f"{approve.DEFAULT}), gate asks a person at the terminal, auto allows "
-             f"(only with --shal-setup sim)",
+             f"{approve.DEFAULT}), prompt asks a person at the terminal, allow "
+             f"approves on the sim rig only (needs SHAL's Hal.bind_approver)",
     )
-
-
-_APPROVER_STACK = pytest.StashKey[contextlib.ExitStack]()
 
 
 def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line(
-        "markers", "unit(id): the DUT id written to this test's SHAL record"
+        "markers", "shal_unit(id): the DUT id written to this test's SHAL record"
     )
-    unit = config.getoption("--unit")
+    unit = config.getoption("--shal-unit")
     if unit is not None and not unit.strip():
-        raise pytest.UsageError("--unit must not be blank (leave it out for 'bench')")
-    mode = config.getoption("--shal-approve")
-    if mode is not None:
-        # Asked for by name: seat it for the whole session, before any test can
-        # load a Hal of its own, so no path gets a weaker approver than asked.
-        stack = contextlib.ExitStack()
-        stack.enter_context(shal.approver(_approver(config, mode)))
-        config.stash[_APPROVER_STACK] = stack
-        config.add_cleanup(stack.close)
-
-
-def _approver(config: pytest.Config, mode: str) -> shal.Approver:
-    capman = config.pluginmanager.getplugin("capturemanager")
-
-    def prompt(banner: str) -> str:
-        # Ask on the real terminal, with pytest's capture out of the way.
-        ctx = capman.global_and_fixture_disabled() if capman else contextlib.nullcontext()
-        with ctx:
-            sys.stdout.write(banner)
-            sys.stdout.flush()
-            line = sys.__stdin__.readline() if sys.__stdin__ else ""
-        if not line:
-            raise EOFError
-        return line
-
-    return approve.approver_for(
-        mode, setup_is_sim=config.getoption("--shal-setup") == SIM, prompt=prompt
-    )
+        raise pytest.UsageError("--shal-unit must not be blank (leave it out for 'bench')")
+    approve.seat_session(config)  # only when --shal-approve is named
 
 
 # --------------------------------------------------------------------------- #
@@ -111,7 +97,7 @@ def _approver(config: pytest.Config, mode: str) -> shal.Approver:
 
 @dataclass(frozen=True)
 class _Setup:
-    source: Path   # what shal.load reads
+    source: Path | None  # what shal.load reads; None = SIM_TOPOLOGY
     name: str      # record `setup`
     station: str   # record `station`
     version: str   # record `setup_version`
@@ -133,14 +119,17 @@ def _git_blob_id(path: Path) -> str:
     return hashlib.sha1(header + data, usedforsecurity=False).hexdigest()
 
 
+def _sim_version() -> str:
+    """The sim's version: a hash of its topology, in canonical JSON."""
+    text = json.dumps(SIM_TOPOLOGY, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha1(text.encode(), usedforsecurity=False).hexdigest()
+
+
 def _resolve_setup(config: pytest.Config) -> _Setup | str:
     """The setup, or the reason there is none. Order: option, setup.yaml, env."""
     opt = config.getoption("--shal-setup")
     if opt == SIM:
-        path = _sim_topology()
-        if not path.is_file():
-            return f"--shal-setup sim: this pyshal has no sim sample at {path}"
-        return _Setup(path, SIM, SIM, _git_blob_id(path), Path(config.rootpath))
+        return _Setup(None, SIM, SIM, _sim_version(), Path(config.rootpath))
     if opt:
         path = Path(config.invocation_params.dir) / opt
         how = "--shal-setup"
@@ -205,10 +194,10 @@ def rig(pytestconfig: pytest.Config) -> Generator[Rig]:
     """The rig from the setup file: one ``shal.load`` per session, closed at the end."""
     setup = _setup_or_fail(pytestconfig)
     with contextlib.ExitStack() as stack:
-        if _APPROVER_STACK not in pytestconfig.stash:
-            # not asked for by name: the default, deny (spec §4)
-            stack.enter_context(shal.approver(_approver(pytestconfig, approve.DEFAULT)))
-        hal = stack.enter_context(shal.load(str(setup.source)))
+        stack.enter_context(approve.seat_default(pytestconfig))  # deny unless named
+        source = copy.deepcopy(SIM_TOPOLOGY) if setup.source is None else str(setup.source)
+        hal = stack.enter_context(shal.load(source))
+        approve.bind_rig(pytestconfig, hal)  # allow: AutoApprove on this Hal only
         yield Rig(hal)
 
 
@@ -279,14 +268,27 @@ class Check:
 
 
 @pytest.fixture
-def check(request: pytest.FixtureRequest) -> Check:
+def check(request: pytest.FixtureRequest) -> Generator[Check]:
     """Assert a measured value against its limits, and record it."""
     _setup_or_fail(request.config)  # the record goes beside the setup
-    return Check(_run_of(request.node))
+    # deny for this test too, so the approver does not depend on test order
+    with approve.seat_default(request.config):
+        yield Check(_run_of(request.node))
 
 
 def _wants_record(item: pytest.Item) -> bool:
-    return not _FIXTURES.isdisjoint(getattr(item, "fixturenames", ()))
+    """True only when the test resolves `rig` or `check` to THIS plugin's fixture.
+
+    A project with its own `check` or `rig` fixture is not a SHAL test.
+    """
+    info = getattr(item, "_fixtureinfo", None)
+    if info is None:
+        return False
+    for name in _FIXTURES:
+        defs = info.name2fixturedefs.get(name)
+        if defs and getattr(defs[-1].func, "__module__", None) == __name__:
+            return True
+    return False
 
 
 def _iso(ts: float) -> str:
@@ -294,13 +296,13 @@ def _iso(ts: float) -> str:
 
 
 def _unit(item: pytest.Item) -> str:
-    marker = item.get_closest_marker("unit")
+    marker = item.get_closest_marker("shal_unit")
     if marker is not None:
         value = marker.args[0] if marker.args else None
         if not isinstance(value, str) or not value.strip():
-            raise ValueError("@pytest.mark.unit needs a non-blank id")
+            raise ValueError("@pytest.mark.shal_unit needs a non-blank id")
         return value
-    opt = item.config.getoption("--unit")
+    opt = item.config.getoption("--shal-unit")
     return str(opt) if opt else _DEFAULT_UNIT
 
 
@@ -321,6 +323,14 @@ def _note(item: pytest.Item, run: _Run, call: pytest.CallInfo[None]) -> None:
         )
     else:
         run.steps.append(shal_record.Step(name=f"{item.name} [{call.when}]", verdict="error"))
+
+
+def _denied_hint(mode: str) -> str:
+    if mode == "prompt":
+        return ("denied under --shal-approve=prompt: no one approved it (stdin is not "
+                "a terminal, or the answer was not yes).")
+    return (f"denied under --shal-approve={mode}. At a bench, run with "
+            f"--shal-approve=prompt to be asked.")
 
 
 def _write_record(item: pytest.Item, run: _Run, ended: str) -> str | None:
@@ -360,12 +370,7 @@ def pytest_runtest_makereport(
         run.started = _iso(call.start)
     _note(item, run, call)
     if call.excinfo is not None and call.excinfo.errisinstance(shal.ApprovalDenied):
-        mode = item.config.getoption("--shal-approve") or approve.DEFAULT
-        report.sections.append((
-            "shal approval",
-            (f"denied under --shal-approve={mode}. At a bench, run with "
-             f"--shal-approve=gate to be asked; on the sim, --shal-approve=auto."),
-        ))
+        report.sections.append(("shal approval", _denied_hint(approve.mode(item.config))))
     if call.when == "teardown" and not run.skipped:
         error = _write_record(item, run, _iso(call.stop))
         if error is not None:

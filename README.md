@@ -11,7 +11,7 @@ device fails the test by default instead of waiting for a person.
 ## First run (no hardware, no file)
 
 ```
-pip install pytest-shal
+pip install .        # from a clone; not on PyPI yet. Needs git (pyshal is pinned by a git URL)
 ```
 
 ```python
@@ -24,13 +24,15 @@ def test_room(rig, check):
 pytest --shal-setup sim
 ```
 
-`sim` is the simulated rig that ships with shal. The record lands in
+`sim` is a simulated rig built into the plugin (a sim bus and one sim sensor,
+using drivers that ship with shal). The record lands in
 `records.db` and `records/<id>.yaml` in the rootdir.
 
 ## At the bench
 
 ```python
-# conftest.py — the one line (only needed when plugin autoload is off)
+# conftest.py — the one line (only needed when plugin autoload is off).
+# Use exactly this form; ["pytest_shal.plugin"] is not supported.
 pytest_plugins = ["pytest_shal"]
 ```
 
@@ -41,14 +43,14 @@ def test_vout(rig, check):
 ```
 
 ```
-pytest --shal-setup bench.yaml --unit SN-000417
+pytest --shal-setup bench.yaml --shal-unit SN-000417
 ```
 
 | name | what |
 |---|---|
 | `--shal-setup PATH\|sim` | the setup file; default `setup.yaml` in the rootdir, then `$SHAL_SETUP` |
-| `--unit ID`, `@pytest.mark.unit("ID")` | the DUT id in the record; default `bench` |
-| `--shal-approve deny\|gate\|auto` | `deny` (default) fails a gated op; `gate` asks a person at the terminal (denies with no terminal); `auto` allows, only with `--shal-setup sim` |
+| `--shal-unit ID`, `@pytest.mark.shal_unit("ID")` | the DUT id in the record; default `bench` |
+| `--shal-approve deny\|prompt\|allow` | `deny` (default) fails a gated op; `prompt` asks a person at the terminal (denies with no terminal); `allow` approves on the sim rig's Hal only, never process-wide, and is refused until SHAL has `Hal.bind_approver` |
 | `rig` | session fixture: `rig.<id>`, or `rig["path/to/node"]` |
 | `check(name, value, unit, min=, max=)` | asserts the limits and records the measurement |
 
