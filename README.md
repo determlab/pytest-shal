@@ -11,7 +11,7 @@ device fails the test by default instead of waiting for a person.
 ## First run (no hardware, no file)
 
 ```
-pip install .        # from a clone; not on PyPI yet. Needs git (pyshal is pinned by a git URL)
+pip install .        # from a clone; not on PyPI yet
 ```
 
 ```python

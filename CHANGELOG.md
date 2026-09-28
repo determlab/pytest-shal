@@ -2,6 +2,8 @@
 
 ## Unreleased (v0.1)
 
+- Depends on `pyshal>=0.3.0,<0.4` from PyPI; the git pin is gone, so installing
+  needs no git (#7).
 - `--shal-setup PATH|sim`: the rig from a SHAL setup file, or a built-in sim
   topology, with no file (spec R4, D3).
 - `rig` fixture: `rig.<id>` and `rig["path/to/node"]`, one `shal.load` per session.
