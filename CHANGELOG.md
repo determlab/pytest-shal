@@ -15,3 +15,6 @@
   `approver=` (D5).
 - One record per test that uses `rig` or `check`, through `shal.record` (D1).
 - A session with no `rig`/`check` and no `--shal-*` option is unchanged.
+- A `shal records` terminal summary: the store path, counts per verdict, and
+  the node id and record id of anything not `pass` — written only when the
+  session wrote at least one record (#8).

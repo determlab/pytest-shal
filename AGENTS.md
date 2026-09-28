@@ -20,7 +20,8 @@ python -m pytest --shal-setup sim test_first.py
 python -c "from shal import record; r = record.read('.')[0]; print(r.verdict, r.unit, r.station)"
 ```
 Expect `1 passed`, then `pass bench sim`. The record is `records.db` and
-`records/<id>.yaml` in the rootdir.
+`records/<id>.yaml` in the rootdir; the `shal records` section in the pytest
+output says where and, for anything not `pass`, the record id.
 
 **Entry points an agent calls:**
 - `--shal-setup PATH|sim`, `--shal-unit ID`, `--shal-approve deny|prompt|allow`
