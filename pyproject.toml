@@ -22,7 +22,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "ruff"]
+dev = ["pytest>=8", "ruff", "mypy==2.3.1"]
 
 # The entry point pytest loads in every session of every project that installs
 # this package. Fenced in .agent-loop.yml (protected_paths: pyproject.toml).
