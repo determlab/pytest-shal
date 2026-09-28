@@ -21,6 +21,7 @@ import json
 import math
 import os
 import secrets
+from collections import Counter
 from collections.abc import Generator
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -227,6 +228,28 @@ def _run_of(item: pytest.Item) -> _Run:
     return item.stash[_RUN]
 
 
+@dataclass(frozen=True)
+class _WrittenRecord:
+    """One record this session wrote, for the terminal summary."""
+
+    nodeid: str
+    verdict: shal_record.Verdict
+    record_id: str
+    unit: str
+    store: Path
+
+
+#: Every record the plugin wrote this session, in write order. Empty unless a
+#: test asked for `rig`/`check` and a record was actually written.
+_RECORDS = pytest.StashKey[list[_WrittenRecord]]()
+
+
+def _records_of(config: pytest.Config) -> list[_WrittenRecord]:
+    if _RECORDS not in config.stash:
+        config.stash[_RECORDS] = []
+    return config.stash[_RECORDS]
+
+
 def _finite(what: str, value: object) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise TypeError(f"check(): {what} must be a number, got {type(value).__name__}")
@@ -359,6 +382,10 @@ def _write_record(item: pytest.Item, run: _Run, ended: str) -> str | None:
             steps=tuple(run.steps),
         )
         shal_record.write(rec, setup.store)
+        _records_of(item.config).append(_WrittenRecord(
+            nodeid=item.nodeid, verdict=rec.verdict, record_id=rec.record,
+            unit=rec.unit, store=setup.store,
+        ))
     except (OSError, ValueError, shal.Error) as e:
         return f"pytest-shal: no record written for {item.nodeid}: {e}"
     return None
@@ -383,3 +410,30 @@ def pytest_runtest_makereport(
             report.outcome = "failed"
             report.longrepr = error
     return report
+
+
+# --------------------------------------------------------------------------- #
+# terminal summary
+# --------------------------------------------------------------------------- #
+
+def pytest_terminal_summary(terminalreporter: pytest.TerminalReporter, config: pytest.Config) -> None:
+    """Where the records went, counts per verdict, and the failing record ids.
+
+    Written only when the session wrote at least one record: a project that
+    installs the plugin but never asks for ``rig``/``check`` sees no change.
+    """
+    records = _records_of(config)
+    if not records:
+        return
+    counts = Counter(r.verdict for r in records)
+    units = sorted({r.unit for r in records})
+    db_path = records[0].store / shal_record.DB_NAME
+    terminalreporter.write_sep("=", "shal records")
+    terminalreporter.write_line(
+        f"{len(records)} records in {db_path} "
+        f"(pass {counts['pass']}, fail {counts['fail']}, error {counts['error']}), "
+        f"unit {'/'.join(units)}"
+    )
+    for rec in records:
+        if rec.verdict != "pass":
+            terminalreporter.write_line(f"{rec.verdict}  {rec.nodeid}  {rec.record_id}")

@@ -26,7 +26,22 @@ pytest --shal-setup sim
 
 `sim` is a simulated rig built into the plugin (a sim bus and one sim sensor,
 using drivers that ship with shal). The record lands in
-`records.db` and `records/<id>.yaml` in the rootdir.
+`records.db` and `records/<id>.yaml` in the rootdir, and a terminal summary
+says so:
+
+```
+======================== shal records ========================
+1 records in /path/to/records.db (pass 1, fail 0, error 0), unit bench
+```
+
+Written only when a test used `rig`/`check`; a run that fails a `check()`
+also lists that record's id:
+
+```
+======================== shal records ========================
+2 records in /path/to/records.db (pass 1, fail 1, error 0), unit bench
+fail  tests/test_psu.py::test_ripple  rec-20260928T101500-ab12cd
+```
 
 ## At the bench
 
