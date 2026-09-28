@@ -18,7 +18,7 @@ merge_method: squash        # squash | merge | rebase
 commands:
   install: "pip install -e \".[dev]\""
   test:    "python -m pytest"
-  lint:    "ruff check ."
+  lint:    "ruff check . && mypy --strict src"
 
 hard_stops:
   # Adding or removing a dependency here -> flag.
@@ -35,6 +35,8 @@ hard_stops:
                           # flags ANY edit to it, which covers that line. The
                           # entry point runs in every test session of every project
                           # that installs this package.
+    - "src/pytest_shal/approve.py"  # the approval default (issue #6)
+    - "src/pytest_shal/plugin.py"   # the pytest11 entry point's own module (issue #6)
 
   # Deleting a file the branch didn't create -> flag.
   flag_on_file_delete: true
