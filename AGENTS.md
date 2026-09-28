@@ -6,8 +6,7 @@ measurement, and each test that uses them writes one record through
 `shal.record`. A gated SHAL op fails the test by default (`--shal-approve=deny`);
 nothing waits on a prompt.
 
-**Install** (from a clone, until it is on PyPI; needs `git`, pyshal is pinned by
-a git URL): `pip install .`
+**Install** (from a clone, until it is on PyPI): `pip install .`
 
 **First success — no account, no key, no config file, no hardware:**
 

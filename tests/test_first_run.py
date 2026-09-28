@@ -2,7 +2,7 @@
 `pytest --shal-setup sim` on a tiny test, and one record written.
 
 It builds the wheel with pip and installs it with its dependencies into a fresh
-venv, so it needs network access and git (pyshal is pinned by a git URL).
+venv, so it needs network access (pyshal comes from PyPI).
 """
 import subprocess
 import sys
