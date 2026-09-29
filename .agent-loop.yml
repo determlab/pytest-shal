@@ -8,10 +8,10 @@ version: 1
 branch_base: main
 
 # Max CODER<->REVIEWER rounds before the loop gives up and flags a human.
-max_rounds: 4
+max_rounds: 1
 
 # auto-merge is REFUSED unless main has a required status check (the CI jobs).
-auto_merge: true
+auto_merge: false
 merge_method: squash        # squash | merge | rebase
 
 # The same commands .github/workflows/ci.yml runs. No build step yet (#1 adds the wheel).
