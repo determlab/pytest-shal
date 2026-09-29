@@ -113,6 +113,21 @@ def test_unit_option_and_marker(pytester):
     assert units == {"test_from_option": "SN-1", "test_from_marker": "SN-000417"}
 
 
+def test_two_units_into_one_store(pytester):
+    pytester.makepyfile(SIM_TEST)
+    pytester.runpytest("--shal-setup", "sim", "--shal-unit", "SN-1").assert_outcomes(passed=1)
+    (first,) = record.read(pytester.path, unit="SN-1")
+    first_file = pytester.path / "records" / f"{first.record}.yaml"
+    first_bytes = first_file.read_bytes()
+
+    pytester.runpytest("--shal-setup", "sim", "--shal-unit", "SN-2").assert_outcomes(passed=1)
+    assert len(record.read(pytester.path)) == 2
+    (second,) = record.read(pytester.path, unit="SN-2")
+    assert second.record != first.record
+    assert first_file.read_bytes() == first_bytes
+    assert len(record.read(pytester.path, unit="SN-1")) == 1
+
+
 def test_blank_unit_is_refused(pytester):
     pytester.makepyfile("def test_a(): pass")
     result = pytester.runpytest("--shal-unit", " ")
