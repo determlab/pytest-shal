@@ -72,4 +72,4 @@ pytest --shal-setup bench.yaml --shal-unit SN-000417
 Records go beside the setup file (for `sim`, the rootdir), through
 `shal.record`. A test that uses neither `rig` nor `check` is left alone.
 
-Contract: `projects/shal/specs/pytest-shal.md` in `determlab/ops`.
+Contract: the options, fixtures, marker and records table above, and `docs/DECISIONS.md`.
