@@ -4,8 +4,8 @@
 `pytest-shal` is a pytest plugin for SHAL (`pyshal`, repo `determlab/shal`). A
 test engineer adds one line to `conftest.py`; each test gets the rig from a
 setup file (`rig` fixture), `check()` asserts and records a measurement, and each
-test writes one record through `shal.record`. The spec of record is
-`projects/shal/specs/pytest-shal.md` in `determlab/ops`. Decisions:
+test writes one record through `shal.record`. The contract is the
+"Entry points an agent calls" list in `AGENTS.md`. Decisions:
 `docs/DECISIONS.md`.
 
 ## Architecture map

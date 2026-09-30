@@ -35,5 +35,5 @@ output says where and, for anything not `pass`, the record id.
 **Develop:** `pip install -e ".[dev]"`, then `python -m pytest`, `ruff check .`,
 and `pip install mypy` + `mypy --strict src` (CI runs all three).
 
-**The contract:** `projects/shal/specs/pytest-shal.md` in `determlab/ops`.
+**The contract:** the "Entry points an agent calls" list above and `docs/DECISIONS.md`.
 Agent rules: `docs/agents/context.md`, `.agent-loop.yml`, `docs/DECISIONS.md`.
