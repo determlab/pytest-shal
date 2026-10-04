@@ -391,6 +391,9 @@ def _write_record(item: pytest.Item, run: _Run, ended: str) -> str | None:
     return None
 
 
+_HOP_ERROR_PROPERTY = "shal_hop_error"
+
+
 @pytest.hookimpl(wrapper=True)
 def pytest_runtest_makereport(
     item: pytest.Item, call: pytest.CallInfo[None]
@@ -404,12 +407,36 @@ def pytest_runtest_makereport(
     _note(item, run, call)
     if call.excinfo is not None and call.excinfo.errisinstance(shal.ApprovalDenied):
         report.sections.append(("shal approval", _denied_hint(approve.mode(item.config))))
+    # A HopError raised in the test body is an infrastructure problem (a dead
+    # instrument link), not a failing check — a user must be able to tell the
+    # two apart in the summary line (#27). Flagged here, through
+    # `user_properties` (the typed, documented way to pass a plugin's own
+    # data on a report — a plain attribute fails `mypy --strict`), acted on
+    # in pytest_report_teststatus below: pytest's own category hook only
+    # reclassifies setup/teardown exceptions as "error", never call-phase
+    # ones, so a call-phase HopError needs its own category to win "error".
+    if call.when == "call" and call.excinfo is not None and call.excinfo.errisinstance(shal.HopError):
+        report.user_properties.append((_HOP_ERROR_PROPERTY, True))
     if call.when == "teardown" and not run.skipped:
         error = _write_record(item, run, _iso(call.stop))
         if error is not None:
             report.outcome = "failed"
             report.longrepr = error
     return report
+
+
+def pytest_report_teststatus(
+    report: pytest.TestReport,
+) -> tuple[str, str, str] | None:
+    """A call-phase ``HopError`` reports as ERROR (category "error"), not
+    FAILED — pytest's own hook (``_pytest.runner.pytest_report_teststatus``)
+    only does this for setup/teardown exceptions, so a call-phase one needs
+    this override. Every other outcome (assertion failures included) is
+    untouched: returning ``None`` falls through to pytest's default mapping.
+    """
+    if report.when == "call" and any(k == _HOP_ERROR_PROPERTY for k, _ in report.user_properties):
+        return "error", "E", "ERROR"
+    return None
 
 
 # --------------------------------------------------------------------------- #
