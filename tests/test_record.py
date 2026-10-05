@@ -193,3 +193,24 @@ def test_missing_setup_file(pytester):
     result = pytester.runpytest("--shal-setup", "nope.yaml")
     result.assert_outcomes(errors=1)
     result.stdout.fnmatch_lines(["*--shal-setup: no setup file at*nope.yaml*"])
+
+
+# -- #29: a transport failure's error step carries cause: transport --------
+
+
+def test_dead_link_error_step_has_transport_cause(pytester):
+    # `fail_next` is the sim i2c bus's own test hook (shal.buses.sim.SimI2cBus):
+    # 2 drops exhausts the one idempotent retry, so the HopError (a dead link,
+    # "simulated link drop before send") reaches the test body uncaught.
+    pytester.makepyfile("""
+        def test_dead_link(rig):
+            rig["/bus"].fail_next = 2
+            rig.ambient_temp.read_celsius()
+    """)
+    result = pytester.runpytest("--shal-setup", "sim")
+    result.assert_outcomes(errors=1)
+    (rec,) = records(pytester.path)
+    assert rec.verdict == "error"
+    (step,) = rec.steps
+    assert step.verdict == "error"
+    assert step.cause == "transport"
