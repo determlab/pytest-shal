@@ -36,4 +36,8 @@ output says where and, for anything not `pass`, the record id.
 and `pip install mypy` + `mypy --strict src` (CI runs all three).
 
 **The contract:** the "Entry points an agent calls" list above and `docs/DECISIONS.md`.
+
+`.github/workflows/rc-wheels.yml` builds pytest-shal from `main` on every push
+as artifact `rc-pytest-shal`, with a `rc-manifest.json` (`package`, `version`,
+`sha`). Nothing is published.
 Agent rules: `docs/agents/context.md`, `.agent-loop.yml`, `docs/DECISIONS.md`.
