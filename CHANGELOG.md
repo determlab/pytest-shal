@@ -4,6 +4,9 @@
 
 - Depends on `pyshal>=0.3.0,<0.4` from PyPI; the git pin is gone, so installing
   needs no git (#7).
+- Verified against pyshal 0.4.x (built from `determlab/shal` main, ahead of its
+  PyPI release); the `pyproject.toml` pin itself still needs widening to
+  `pyshal>=0.3.0,<0.5` and that edit needs a human, the file being fenced (#30).
 - `--shal-setup PATH|sim`: the rig from a SHAL setup file, or a built-in sim
   topology, with no file (spec R4, D3).
 - `rig` fixture: `rig.<id>` and `rig["path/to/node"]`, one `shal.load` per session.
