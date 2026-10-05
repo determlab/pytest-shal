@@ -20,3 +20,9 @@
 - A `shal records` terminal summary: the store path, counts per verdict, and
   the node id and record id of anything not `pass` — written only when the
   session wrote at least one record (#8).
+- `tests/test_readme_commands.py`: every fenced command on README's first
+  screen and in AGENTS.md is extracted and run as written, in a fresh venv —
+  docs are tests (D3, #34). With `RC_WHEELS=<dir>` set, `pip install` lines
+  run against that dir instead of PyPI; a `doc-test: skip` marker is honoured
+  only while `RC_WHEELS` is unset, and the test caps how many such skips the
+  docs may carry at once.
