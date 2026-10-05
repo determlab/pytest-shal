@@ -2,6 +2,7 @@
 from pathlib import Path
 
 import pytest
+import shal
 import yaml
 from shal import record
 
@@ -11,6 +12,16 @@ SIM_TEST = """
 def test_room(rig, check):
     check("room", rig.ambient_temp.read_celsius(), "celsius", min=-40, max=125)
 """
+
+# Step.cause / Step.from_error (shal #301) postdate the pinned pyshal<0.4 (not
+# yet on PyPI), so this skips there the same way test_approve.py does for
+# shal.load(approver=) (shal #217): checked by capability, not version.
+HAS_STEP_CAUSE = hasattr(record.Step, "from_error")
+needs_step_cause = pytest.mark.skipif(
+    not HAS_STEP_CAUSE,
+    reason=f"installed pyshal {shal.__version__} has no shal.record.Step.from_error "
+           f"(shal #301, not yet on PyPI); a transport error's cause isn't stored yet",
+)
 
 
 def records(path):
@@ -198,6 +209,7 @@ def test_missing_setup_file(pytester):
 # -- #29: a transport failure's error step carries cause: transport --------
 
 
+@needs_step_cause
 def test_dead_link_error_step_has_transport_cause(pytester):
     # `fail_next` is the sim i2c bus's own test hook (shal.buses.sim.SimI2cBus):
     # 2 drops exhausts the one idempotent retry, so the HopError (a dead link,
