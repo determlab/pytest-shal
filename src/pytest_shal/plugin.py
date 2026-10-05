@@ -26,7 +26,7 @@ from collections.abc import Generator
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 import shal
@@ -335,6 +335,25 @@ def _unit(item: pytest.Item) -> str:
     return str(opt) if opt else _DEFAULT_UNIT
 
 
+#: ``Step.from_error`` (shal #301, cause: transport for a HopError) is not on
+#: the pinned pyshal yet (PyPI has 0.3.0; it needs 0.4.0+). Checked by
+#: capability, the same pattern ``approve.can_allow()`` uses for
+#: ``shal.load(approver=)`` — without this, every non-assertion error step
+#: on the installed pyshal raises AttributeError instead of being recorded.
+_HAS_STEP_FROM_ERROR = hasattr(shal_record.Step, "from_error")
+
+
+def _error_step(name: str, exc: BaseException) -> shal_record.Step:
+    if _HAS_STEP_FROM_ERROR:
+        # getattr, not a literal attribute access: the installed pyshal's
+        # stubs may or may not know this name (shal #301), and a `# type:
+        # ignore` would be "unused" on one side or the other depending on
+        # which is installed — this works under either.
+        from_error = getattr(shal_record.Step, "from_error")  # noqa: B009 — see above
+        return cast(shal_record.Step, from_error(name, exc))
+    return shal_record.Step(name=name, verdict="error")
+
+
 def _note(item: pytest.Item, run: _Run, call: pytest.CallInfo[None]) -> None:
     """Turn one phase's outcome into steps (spec §3, verdict mapping)."""
     exc = call.excinfo
@@ -347,11 +366,14 @@ def _note(item: pytest.Item, run: _Run, call: pytest.CallInfo[None]) -> None:
         if exc.errisinstance(CheckFailed):
             return  # the check already recorded its step
         failed = exc.errisinstance((AssertionError, pytest.fail.Exception))
-        run.steps.append(
-            shal_record.Step(name=item.name, verdict="fail" if failed else "error")
-        )
+        if failed:
+            run.steps.append(shal_record.Step(name=item.name, verdict="fail"))
+        else:
+            run.steps.append(_error_step(item.name, exc.value))
     else:
-        run.steps.append(shal_record.Step(name=f"{item.name} [{call.when}]", verdict="error"))
+        run.steps.append(
+            _error_step(f"{item.name} [{call.when}]", exc.value)
+        )
 
 
 def _denied_hint(mode: str) -> str:
