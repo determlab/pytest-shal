@@ -21,6 +21,11 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install
         run: pip install -e ".[dev]"
+      - name: Pin pyshal to shal main (record_version 3, shal#409/pytest-shal#39)
+        # Do not wait for a PyPI release, and do not change the released
+        # `pyshal>=0.3.0,<0.5` range in pyproject.toml for this -- this
+        # override is test/CI-only, the same pattern other tickets use.
+        run: pip install "pyshal @ git+https://github.com/determlab/shal@a799eaada20aa4071dcfef38df86d6ffdaf94db5"
       - name: Test
         run: python -m pytest
 
