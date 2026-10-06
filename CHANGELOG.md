@@ -31,8 +31,10 @@
   `instrument_id`/`instrument_simulated`/`limit_source`, per record
   `repeatability` — empty or `null`, since this plugin computes none of
   them (#39). Checked by capability (`hasattr(shal.record, "LimitSource")`),
-  the same pattern already used for `Step.from_error`, so this is a no-op
-  skip, not a failure, against a pyshal older than shal#409. CI pins
-  `pyshal` to `shal@a799eaa` (record_version 3's merge commit) to test this
-  ahead of its PyPI release, without touching the released `pyshal>=0.3.0,
-  <0.5` range.
+  the same pattern already used for `Step.from_error`. CI pins `pyshal` to
+  `shal@a799eaa` (record_version 3's merge commit) to test this ahead of
+  its PyPI release, without touching the released `pyshal>=0.3.0,<0.5`
+  range, and sets `PYTEST_SHAL_REQUIRE_RECORD_V3` on that job so a missing
+  `LimitSource` is a collection failure there, never a silent skip. Tracking
+  issue #42: remove the pin, the env var and the skip once a pyshal with
+  `LimitSource` is on PyPI, and raise the floor instead.

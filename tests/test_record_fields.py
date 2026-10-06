@@ -10,6 +10,8 @@ own write path, and through a real test run.
 """
 from __future__ import annotations
 
+import os
+
 import pytest
 import shal
 import yaml
@@ -20,10 +22,24 @@ def test_room(rig, check):
     check("room", rig.ambient_temp.read_celsius(), "celsius", min=-40, max=125)
 """
 
-# record_version 3 (shal#409) postdates the pinned pyshal<0.4 (not yet on
-# PyPI) -- checked by capability, the same pattern this file's own
-# HAS_STEP_CAUSE (test_record.py) already uses, never by version string.
+# record_version 3 (shal#409) postdates the released pyshal>=0.3.0,<0.5 (not
+# yet on PyPI) -- checked by capability, the same pattern test_record.py's
+# own HAS_STEP_CAUSE already uses, never by version string.
 HAS_RECORD_V3 = hasattr(record, "LimitSource")
+
+# CTO review on PR #41: a skip here is silent -- CI stays green with 4 skips
+# if the pin step (ci.yml) is ever dropped or edited, or pip resolves
+# differently, and "pytest -q passes in CI with the pinned shal" (#39's own
+# Done-when) would then be proving nothing. ci.yml sets this on the pin
+# step's job; when it is set, a missing `LimitSource` is a collection
+# FAILURE, never a skip, so a broken pin cannot hide behind a green run.
+if not HAS_RECORD_V3 and os.environ.get("PYTEST_SHAL_REQUIRE_RECORD_V3") == "1":
+    pytest.fail(
+        f"PYTEST_SHAL_REQUIRE_RECORD_V3=1 but installed pyshal {shal.__version__} has "
+        f"no shal.record.LimitSource (shal#409, record_version 3) -- the pin step "
+        f"that should install it is missing, was edited, or pip resolved differently",
+        pytrace=False)
+
 needs_record_v3 = pytest.mark.skipif(
     not HAS_RECORD_V3,
     reason=f"installed pyshal {shal.__version__} has no shal.record.LimitSource "
@@ -56,7 +72,8 @@ def test_a_real_test_run_writes_a_v3_record_with_all_five_keys_null(pytester):
     assert m.instrument_simulated is None
     assert m.limit_source is None
 
-    # the agent path (issue's own DoD line): read the record file as JSON
+    # the agent path (issue's own DoD line, which says "JSON" -- imprecise;
+    # a record's audit copy is YAML, `record.md` §4): read the record file
     # and find all five keys, present and null -- a v3 record never omits
     # them, so an agent sees every key without reading docs.
     yaml_doc = yaml.safe_load(
