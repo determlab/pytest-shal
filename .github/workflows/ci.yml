@@ -21,7 +21,24 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install
         run: pip install -e ".[dev]"
+      - name: Pin pyshal to shal main (record_version 3, shal#409/pytest-shal#39)
+        # Exit condition (tracking issue determlab/pytest-shal#42): remove
+        # this step once a pyshal with shal.record.LimitSource is on PyPI;
+        # at that point also raise pyproject.toml's floor to that version
+        # and delete this step and tests/test_record_fields.py's
+        # needs_record_v3 skip. Until then this is test/CI-only -- it does
+        # not change the released `pyshal>=0.3.0,<0.5` range.
+        run: pip install "pyshal @ git+https://github.com/determlab/shal@a799eaada20aa4071dcfef38df86d6ffdaf94db5"
       - name: Test
+        # PYTEST_SHAL_REQUIRE_RECORD_V3 (CTO review on PR #41): the pin
+        # above is the only reason test_record_fields.py's v3 tests run at
+        # all -- without this, a dropped/edited pin step, or pip resolving
+        # differently, would leave CI green on 4 silent skips, and "pytest
+        # -q passes in CI with the pinned shal" (#39's own Done-when) would
+        # prove nothing. With this set, a missing shal.record.LimitSource
+        # is a collection FAILURE here, never a skip.
+        env:
+          PYTEST_SHAL_REQUIRE_RECORD_V3: "1"
         run: python -m pytest
 
   lint:
