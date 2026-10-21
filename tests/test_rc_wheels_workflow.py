@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import yaml
+from packaging.version import Version
 
 WORKFLOW = Path(__file__).resolve().parent.parent / ".github" / "workflows" / "rc-wheels.yml"
 
@@ -34,6 +35,21 @@ def test_version_carries_an_rc_local_segment():
     # release, so it always carries a PEP 440 local segment.
     text = WORKFLOW.read_text("utf-8")
     assert "+rc." in text
+
+
+def test_stamp_is_utc_commit_time_then_sha():
+    text = WORKFLOW.read_text("utf-8")
+    assert "+rc.${stamp}.${sha7}" in text
+    assert "TZ=UTC git show -s --format=%cd" in text
+    assert "date -u" not in text and "$(date" not in text
+
+
+def test_rc_versions_sort_by_commit_time_not_sha():
+    # 6757219 is all digits, so as the first local segment it would compare
+    # numerically; the timestamp must come first for time order to win.
+    older = Version("0.1.0+rc.202610150900.6757219")
+    newer = Version("0.1.0+rc.202610211530.66babd9")
+    assert older < newer
 
 
 def test_manifest_has_repo_filename_and_sha256():
